@@ -9,7 +9,7 @@ import subprocess
 
 
 
-urm_core = "/home/tiger/dev/uml/urm-core.jar"
+#urm_core = "/home/tiger/dev/uml/urm-core.jar"
 
 class Mount:
     def __init__(self):
@@ -72,63 +72,80 @@ def sort_classes(file_path: str):
         f.write(result)
 
 
-def build_project(folder, content):
-    os.mkdir(folder + os.sep + "build")
-    src_path = [folder, "src", "com", "qxcode"]
+def build_project(temp_folder, content):
+    os.mkdir(temp_folder + os.sep + "build")
+    src_path = [temp_folder, "src", "com", "qxcode"]
     for i in range(1, len(src_path)):
         os.mkdir(os.sep.join(src_path[0:(i + 1)]))
     src_solver = os.sep.join(src_path + ["Solver.java"])
-    with open(folder + os.sep + "myManifest", "w") as f:
+    with open(temp_folder + os.sep + "myManifest", "w") as f:
         f.write("Main-Class: com.qxcode.Solver\n")
     with open(src_solver, "w") as f:
         f.write("package com.qxcode;\n" + content)
     return src_solver
 
-def make_jar(folder, src_solver):
+def make_jar(temp_folder, src_solver):
     cmd = ["javac", "-g", "-sourcepath", 
-            folder + os.sep + "src", "-d", 
-            folder + os.sep + "build", src_solver]
+            temp_folder + os.sep + "src", "-d", 
+            temp_folder + os.sep + "build", src_solver]
     subprocess.run(cmd)
-    dest_jar = folder + os.sep + "qxcode.jar"
+    dest_jar = temp_folder + os.sep + "qxcode.jar"
     cmd = ["jar", "cfm", dest_jar, 
-            folder + os.sep + "myManifest", "-C", 
-            folder + os.sep + "build", "."]
+            temp_folder + os.sep + "myManifest", "-C", 
+            temp_folder + os.sep + "build", "."]
     subprocess.run(cmd)
-    print(folder)
+    print(temp_folder)
     return dest_jar
 
-def make_png(folder, dest_jar, target_folder, puml_only):
-    puml_file = folder + os.sep + "diagrama.puml"
+def make_puml(temp_folder, dest_jar, urmcore):
+    puml_file = temp_folder + os.sep + "diagrama.puml"
     cmd = ["java", "-cp", 
-            urm_core + ":" + dest_jar, 
+            urmcore + ":" + dest_jar, 
             "com.iluwatar.urm.DomainMapperCli", "-p", "com.qxcode", 
             "-i", "com.qxcode.Solver,com.qxcode.Manual", 
             "-f", puml_file]
     subprocess.run(cmd)
-    sort_classes(puml_file)
-    if puml_only:
-        shutil.copy(puml_file, 
-                target_folder + os.sep + "diagrama.puml")
-    else:
+    return puml_file
+
+
+    # sort_classes(puml_file)
+    # if puml_only:
+    #     shutil.copy(puml_file, 
+    #             target_folder + os.sep + "diagrama.puml")
+
+def make_image(puml_file, temp_folder, target_folder):
         cmd = ["plantuml", puml_file]
         subprocess.run(cmd)
-        shutil.copy(folder + os.sep + "diagrama.png", 
-                    target_folder + os.sep + "diagrama.png")
+        shutil.copy(temp_folder + os.sep + "diagrama.png", target_folder + os.sep + "diagrama.png")
 
 
 def main():
     parse = argparse.ArgumentParser()
-    parse.addargument("urm-core", help="urm-core.jar path")
-    parse.add_argument("target", help="file with all java classes")
-    parse.add_argument("--puml", action='store_true', help="")
+    parse.add_argument("urmcore", help="urm-core.jar path")
+    parse.add_argument("target", help="file with java classes")
+    parse.add_argument("--puml", "-p", action='store_true', help="generate puml file")
+    parse.add_argument("--sort", "-s", action='store_true', help="sort puml using access modifiers")
+    parse.add_argument("--image", "-i", action='store_true', help="make png image from puml")
     args = parse.parse_args()
     target_full_path = os.path.abspath(args.target)
     target_folder = os.sep.join(target_full_path.split(os.sep)[:-1])
     content = open(args.target).read()
-    folder = tempfile.mkdtemp()
-    src_solver = build_project(folder, content)
-    dest_jar = make_jar(folder, src_solver)
-    make_png(folder, dest_jar, target_folder, args.puml)
+    temp_folder = tempfile.mkdtemp()
+
+    src_solver = build_project(temp_folder, content)
+    
+    dest_jar = make_jar(temp_folder, src_solver)
+    
+    puml_file = make_puml(temp_folder, dest_jar, args.urmcore)
+    
+    if args.sort:
+        sort_classes(puml_file)
+
+    if args.puml:
+        shutil.copy(puml_file, target_folder + os.sep + "diagrama.puml")
+    
+    if args.image:
+        make_image(puml_file, temp_folder, target_folder)
 
     # cmd = "java -cp /home/tiger/dev/uml/urm-core.jar:qxcode.jar com.iluwatar.urm.DomainMapperCli -p com.qxcode -i com.qxcode.Solver,com.qxcode.Manual -f diagrama.puml"
     # subprocess.run(cmd.split(" "))
