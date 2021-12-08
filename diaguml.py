@@ -6,7 +6,7 @@ import tempfile
 import os
 import shutil
 import subprocess
-
+from typing import List
 
 
 #urm_core = "/home/tiger/dev/uml/urm-core.jar"
@@ -17,14 +17,19 @@ class Mount:
         self.private = []
         self.public = []
         self.protected = []
+        self.getsets = []
         self.toString = False
 
     def add(self, line):
         if line.startswith("    ") and not "(" in line:
             self.atributes.append(line)
             return True
-        elif "toString(" in line:
+        elif "toString" in line:
             self.toString = True
+            return True
+        elif line.startswith("    ~ get") or line.startswith("    + get") or line.startswith("    ~ set") or line.startswith("    + set"):
+            line = line.replace("    ~", "    +")
+            self.getsets.append(line)
             return True
         elif line.startswith("    ~"):
             self.protected.append(line)
@@ -42,12 +47,13 @@ class Mount:
         self.private.clear()
         self.protected.clear()
         self.atributes.clear()
+        self.getsets.clear();
 
     def process(self):
         if self.toString:
             self.public.append("    + toString() : String")
         self.atributes = sorted(self.atributes)
-        mount = [self.atributes] + [self.private] + [self.public] + [self.protected]
+        mount = [self.atributes] + [self.private] + [self.public] + [self.getsets] + [self.protected]
         mount = ["\n".join(l) + "\n" for l in mount if len(l) != 0]
         return "    __\n".join(mount)
 
